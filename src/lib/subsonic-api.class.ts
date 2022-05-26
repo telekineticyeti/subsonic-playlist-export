@@ -57,7 +57,6 @@ export default class SubsonicApi {
     }[],
   ): Observable<Subsonic.response> {
     const url = this.constructEndpointUrl(endpoint, params);
-    console.log(`[ QUERY ]`, url);
     return from(fetch(url)).pipe(
       switchMap(response => response.text()),
       switchMap(body => this.asyncXmlParse<Subsonic.response>(body, {explicitArray: true})),
