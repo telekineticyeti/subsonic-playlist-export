@@ -3,6 +3,7 @@ import resolve from '@rollup/plugin-node-resolve';
 import commonJs from '@rollup/plugin-commonjs';
 import json from '@rollup/plugin-json';
 import dotenv from 'dotenv';
+import cleaner from 'rollup-plugin-cleaner';
 dotenv.config();
 
 export default {
@@ -20,6 +21,9 @@ export default {
     commonJs({
       include: /node_modules/,
     }),
+    // cleaner({
+    //   targets: ['./music/', './dist/'],
+    // }),
   ],
   preserveEntrySignatures: 'strict',
 };

@@ -3,3 +3,6 @@ dist
 .env
 webpack.config.js
 persist
+music
+exported-playlists
+reset.sh
