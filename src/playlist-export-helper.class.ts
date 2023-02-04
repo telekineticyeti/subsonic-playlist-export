@@ -1,278 +1,112 @@
 import {Subsonic} from 'subsonic-api-wrapper';
-import * as fs from 'fs-extra';
+import * as fse from 'fs-extra';
 import * as path from 'path';
-import {Observable, of} from 'rxjs';
 import * as cliProgress from 'cli-progress';
 import * as colors from 'ansi-colors';
 import SubsonicApiWrapper from 'subsonic-api-wrapper';
 import PersistClass from './persist.class';
+import config from './config';
 
 const persistHelper = new PersistClass();
 
-export default class PlaylistExportHelperClass {
-  public resolveSongsToProcess(
-    playlistSongs: Subsonic.Song[],
-    songsInPersist?: Exporter.PersistedSong[],
-  ): Observable<{
-    songsToAdd: Subsonic.Song[];
-    songsToRemove: {
-      id: string;
-      path: string;
-    }[];
-  }> {
-    // List of new songs that will be copied to destination directory
-    let songsToAdd = playlistSongs;
-    // List of songs missing from the playlist that will be removed from the destination directory
-    let songsToRemove: Exporter.PersistedSong[] = [];
-
-    if (songsInPersist) {
-      songsToAdd = songsToAdd.filter(song => !songsInPersist.map(s => s.id).includes(song.id));
-      songsToRemove = songsInPersist.filter(
-        song => !playlistSongs.map(s => s.id).includes(song.id),
-      );
-    }
-
-    return of({songsToAdd, songsToRemove});
-  }
-
-  public createProgressBar(name: string) {
-    return new cliProgress.SingleBar({
-      format: `Processing '${name}' | ${colors.cyan(
-        '{bar}',
-      )} | {value}/{total} Songs ({skipped} skipped) || {track}`,
-      barCompleteChar: '\u2588',
-      barIncompleteChar: '\u2591',
-      hideCursor: true,
-    });
-  }
-
-  // public async createDownloadTasks(): {
-
-  // }
-
-  public async downloadSongs(
-    songs: Exporter.PersistedSong[],
-    playlist: Subsonic.PlaylistDetails,
-    destinationPath: string,
-    api: SubsonicApiWrapper,
-  ) {
-    // const
-
-    const progressBar = this.createProgressBar(playlist.playlist.name);
-    progressBar.start(songs.length, 0, {track: '...', skipped: 0});
-
-    let totalSize = 0;
-    let skipped = 0;
-
-    await Promise.all(
-      songs.map(async song => {
-        try {
-          const destination = path.join(destinationPath, song.path);
-          const trackName = song.path.replace(/^.*[\\\/]/, '');
-          const albumPath = path.join(
-            destinationPath,
-            song.path.substring(0, song.path.lastIndexOf('/')),
-          );
-          let songSizeInMb = 0;
-
-          if (fs.existsSync(destination)) {
-            // Skip the file transfer if the destination file already exists.
-            skipped++;
-            progressBar.increment({track: trackName});
-            progressBar.update({skipped});
-            return;
-          } else {
-            // Export the song from the API endpoint
-            await fs.ensureDir(albumPath);
-            return await api
-              .stream(song.id)
-              .then(async res => {
-                songSizeInMb = res.length ? parseInt(res.length!) : 0 / (1024 * 1024);
-                await fs.writeFile(destination, res.buffer);
-              })
-              .then(() => {
-                progressBar.increment({track: trackName});
-                totalSize = totalSize + songSizeInMb;
-              });
-          }
-        } catch (error: any) {
-          throw new Error(error);
-        }
-      }),
-    );
-
-    progressBar.update({track: `Completed - ${Math.round(totalSize)} Mb.`});
-    progressBar.stop();
-    return {success: progressBar.getTotal()};
-  }
-
-  public async moveSongsToDestination(
-    songs: Exporter.PersistedSong[],
-    playlist: Subsonic.PlaylistDetails,
-    sourcePath: string,
-    destinationPath: string,
-  ): Promise<{success: number}> {
-    let totalSize = 0;
-    let skipped = 0;
-    const progressBar = new cliProgress.SingleBar({
-      format: `Processing '${playlist.playlist.name}' | ${colors.cyan(
-        '{bar}',
-      )} | {value}/{total} Songs ({skipped} skipped) || {track}`,
-      barCompleteChar: '\u2588',
-      barIncompleteChar: '\u2591',
-      hideCursor: true,
-    });
-
-    progressBar.start(songs.length, 0, {track: '...', skipped: 0});
-
-    await Promise.all(
-      songs.map(async song => {
-        try {
-          const source = path.join(sourcePath, song.path);
-          const destination = path.join(destinationPath, song.path);
-          const trackName = song.path.replace(/^.*[\\\/]/, '');
-          const albumPath = path.join(
-            destinationPath,
-            song.path.substring(0, song.path.lastIndexOf('/')),
-          );
-          const sizeInBytes = fs.statSync(source).size;
-          const sizeInMb = sizeInBytes / (1024 * 1024);
-
-          // Skip the file transfer if the destination file already exists.
-          if (fs.existsSync(destination)) {
-            skipped++;
-            progressBar.increment({track: trackName});
-            progressBar.update({skipped});
-            return;
-            // Copy the file to the destination folder.
-          } else {
-            await fs.ensureDir(albumPath);
-            return await fs.copyFile(source, destination).then(() => {
-              progressBar.increment({track: trackName});
-              totalSize = totalSize + sizeInMb;
-            });
-          }
-        } catch (error: any) {
-          throw new Error(error);
-        }
-      }),
-    );
-
-    progressBar.update({track: `Completed - ${Math.round(totalSize)} Mb.`});
-    progressBar.stop();
-    return {success: progressBar.getTotal()};
-  }
-
-  public async writem3uPlaylist(
-    playlist: Subsonic.PlaylistDetails,
-    destinationPath: string,
-  ): Promise<any> {
-    const filename = `${playlist.playlist.name}.m3u8`;
-    let m3uString = `# Exported from subsonic ${playlist.playlist.name} (${playlist.playlist.id})\n`;
-    m3uString += `# Created: ${playlist.playlist.created}, Updated: ${playlist.playlist.changed}\n`;
-
-    try {
-      playlist.songs.forEach(song => {
-        m3uString += `${song.path}\n`;
-      });
-      fs.writeFile(path.join(destinationPath, filename), m3uString);
-    } catch (error: any) {
-      throw new Error(error);
-    }
-  }
-
-  public niceDate(dateStr: string): string {
-    return new Date(dateStr).toISOString().replace(/T/, ' ').replace(/\..+/, '');
-  }
-
-  public log(message: string, type: 'info' | 'warning' | 'error' = 'info'): void {
-    switch (type) {
-      case 'info':
-        console.log(`\x1b[36m${message}\x1b[0m`);
-        break;
-      case 'error':
-        console.error(`\x1b[31m${message}\x1b[0m`);
-        break;
-      case 'warning':
-        console.log(`\x1b[33m${message}\x1b[0m`);
-        break;
-      default:
-        console.log(message);
-        break;
-    }
-  }
-}
-
-//
-//
-//
-//
-//
-
+/**
+ *
+ */
 export class TaskRunner {
-  constructor(private api: SubsonicApiWrapper, private outputPath: string) {}
-  private tasks: DownloadTask[] = [];
+  constructor(private api: SubsonicApiWrapper) {}
+  private tasks: ExportTask[] = [];
 
   public addTask(playlist: Subsonic.PlaylistDetails) {
-    const task = new DownloadTask(playlist, this.api, this.outputPath);
+    const task = new ExportTask(playlist, this.api, config.outputPath!);
     this.tasks.push(task);
-    console.log(task.playlist.playlist.name, 'added!');
     return this;
   }
 
-  public start() {
-    return Promise.all(
+  public async start() {
+    const report: string[] = [];
+
+    await Promise.all(
       this.tasks.map(async task => {
         await task.ready;
-        await task.export();
-        console.log(task.playlist.playlist.name, 'got past it dawg');
+        const {skipped, total, exported} = await task.export();
+        report.push(
+          `${[
+            task.playlist.playlist.name,
+          ]} Playlist exported. [${exported} of ${total} tracks exported (${skipped} skipped)])`,
+        );
       }),
     );
+
+    console.log(report);
   }
 }
 
-//
-//
-//
-//
-//
-
-export class DownloadTask {
+/**
+ * New instances of this class are spawned by `TaskRunner` class.
+ * An export task is created for each playlist to be exported.
+ */
+export class ExportTask {
+  public exportedTracks = 0;
   public skippedTracks = 0;
   public totalTracks: number;
   public ready: Promise<void>;
+  public songsToRemove: {id: string; path: string}[] = [];
   private persistedSongs?: Exporter.PersistedSong[];
   private songsToExport: Subsonic.Song[] = [];
-  public songsToRemove: {id: string; path: string}[] = [];
+  private progressBar = this.createProgressBar(this.playlist.playlist.name);
+  private silent = true;
 
   constructor(
     public playlist: Subsonic.PlaylistDetails,
     private api: SubsonicApiWrapper,
     private outputPath: string,
   ) {
-    this.totalTracks = playlist.songs.length;
-
     this.ready = new Promise(async (resolve, reject) => {
       try {
         const persist = await persistHelper.get<Exporter.PersistedSong[]>(playlist.playlist.id);
         this.persistedSongs = persist;
-        const resolved = this.resolveSongs();
-        this.songsToExport = resolved.songsToAdd;
-        this.songsToRemove = resolved.songsToRemove;
+        this.resolveSongs();
         resolve();
       } catch (error) {
-        console.error(error);
         reject();
       }
     });
+
+    this.totalTracks = this.playlist.songs.length;
+    this.setupPlaylist();
+  }
+
+  private setupPlaylist() {
+    if (config.format === 'mp3') {
+      this.playlist.songs = this.playlist.songs.map(song => {
+        const path = song.path.replace(/\.[^/.]+$/, '.mp3');
+        return {...song, path};
+      });
+    } else if (config.format === 'opus') {
+      this.playlist.songs = this.playlist.songs.map(song => {
+        const path = song.path.replace(/\.[^/.]+$/, '.opus');
+        return {...song, path};
+      });
+    }
   }
 
   public async export() {
-    const progressBar = this.createProgressBar(this.playlist.playlist.name);
-    progressBar.start(this.songsToExport.length, 0, {track: '...', skipped: 0});
+    await this.exportSongs();
+    await this.exportPlaylist();
+    await this.updatePersist();
 
-    let totalSize = 0;
-    let skipped = 0;
+    return {exported: this.exportedTracks, skipped: this.skippedTracks, total: this.totalTracks};
+  }
+
+  /**]
+   *
+   */
+  private async exportSongs() {
+    if (!this.silent) {
+      this.progressBar.start(this.songsToExport.length, 0, {track: '...', skipped: 0});
+    }
+
+    // let totalSize = 0;
 
     await Promise.all(
       this.songsToExport.map(async song => {
@@ -285,24 +119,32 @@ export class DownloadTask {
           );
           let songSizeInMb = 0;
 
-          if (fs.existsSync(destination)) {
+          if (fse.existsSync(destination)) {
             // Skip the file transfer if the destination file already exists.
-            skipped++;
-            progressBar.increment({track: trackName});
-            progressBar.update({skipped});
+            this.skippedTracks++;
+            if (!this.silent) {
+              this.progressBar?.increment({track: trackName});
+              this.progressBar?.update({skipped: this.skippedTracks});
+            }
             return;
           } else {
             // Export the song from the API endpoint
-            await fs.ensureDir(albumPath);
+            await fse.ensureDir(albumPath);
             return await this.api
               .stream(song.id)
               .then(async res => {
                 songSizeInMb = res.length ? parseInt(res.length!) : 0 / (1024 * 1024);
-                await fs.writeFile(destination, res.buffer);
+
+                // Workout actual dest here, make sure playlist output path is correct.
+                await fse.writeFile(destination, res.buffer);
+                // console.log(song.title, res.type);
               })
               .then(() => {
-                progressBar.increment({track: trackName});
-                totalSize = totalSize + songSizeInMb;
+                if (!this.silent) {
+                  this.exportedTracks++;
+                  this.progressBar.increment({track: trackName});
+                  // totalSize = totalSize + songSizeInMb;
+                }
               });
           }
         } catch (error: any) {
@@ -311,26 +153,49 @@ export class DownloadTask {
       }),
     );
 
-    progressBar.update({track: `Completed - ${Math.round(totalSize)} Mb.`});
-    progressBar.stop();
-    return {success: progressBar.getTotal()};
+    if (!this.silent) {
+      this.progressBar.update({track: `Completed`});
+      // this.progressBar.update({track: `Completed - ${Math.round(totalSize)} Mb.`});
+      this.progressBar.stop();
+    }
+    return;
   }
 
-  public writePlaylist() {
-    // const filename = `${playlist.playlist.name}.m3u8`;
-    // let m3uString = `# Exported from subsonic ${playlist.playlist.name} (${playlist.playlist.id})\n`;
-    // m3uString += `# Created: ${playlist.playlist.created}, Updated: ${playlist.playlist.changed}\n`;
-    // try {
-    //   playlist.songs.forEach(song => {
-    //     m3uString += `${song.path}\n`;
-    //   });
-    //   fs.writeFile(path.join(destinationPath, filename), m3uString);
-    // } catch (error: any) {
-    //   throw new Error(error);
-    // }
+  /**
+   *
+   */
+  public async exportPlaylist() {
+    const filename = `${this.playlist.playlist.name}.m3u8`; // TODO: Configurable format
+    let m3uString = `# Exported from subsonic ${this.playlist.playlist.name} (${this.playlist.playlist.id})\n`;
+    m3uString += `# Created: ${this.playlist.playlist.created}, Updated: ${this.playlist.playlist.changed}\n`;
+    try {
+      this.playlist.songs.forEach(song => {
+        m3uString += `${song.path}\n`;
+      });
+      fse.writeFile(path.join(config.outputPath!, filename), m3uString);
+      return;
+    } catch (error: any) {
+      throw new Error('Playlist file export failed.');
+    }
   }
 
-  // TODO add write m3u
+  /**
+   *
+   */
+  private async updatePersist() {
+    try {
+      return await persistHelper.upsertOnDiff<ISongPersist[]>(
+        this.playlist.playlist.id,
+        this.playlist.songs.map(song => ({
+          id: song.id,
+          path: song.path,
+          format: 'mp3',
+        })),
+      );
+    } catch (error: any) {
+      throw new Error('Persist update failed.');
+    }
+  }
 
   private createProgressBar(name: string) {
     return new cliProgress.SingleBar({
@@ -343,20 +208,14 @@ export class DownloadTask {
     });
   }
 
-  private resolveSongs(): {
-    songsToAdd: Subsonic.Song[];
-    songsToRemove: {
-      id: string;
-      path: string;
-    }[];
-  } {
+  private resolveSongs() {
     // List of new songs that will be copied to destination directory
-    let songsToAdd = this.playlist.songs;
+    let songsToExport = this.playlist.songs;
     // List of songs missing from the playlist that will be removed from the destination directory
     let songsToRemove: Exporter.PersistedSong[] = [];
 
     if (this.persistedSongs?.length) {
-      songsToAdd = songsToAdd.filter(
+      songsToExport = songsToExport.filter(
         song => !this.persistedSongs!.map(s => s.id).includes(song.id),
       );
       songsToRemove = this.persistedSongs.filter(
@@ -364,6 +223,40 @@ export class DownloadTask {
       );
     }
 
-    return {songsToAdd, songsToRemove};
+    this.songsToRemove = songsToRemove;
+    this.songsToExport = songsToExport;
+
+    return;
   }
+}
+
+interface ISongPersist {
+  id: string;
+  path: string;
+  format: 'mp3' | 'flac' | 'opus' | 'ogg' | 'm4a';
+}
+
+// if (r.type) {
+//   switch (r.type) {
+//     case 'audio/mpeg':
+//       ext = 'mp3';
+//       break;
+//     case 'audio/flac':
+//       ext = 'flac';
+//       break;
+//     case 'audio/ogg':
+//       ext = 'opus';
+//       break;
+//     case 'audio/mp4':
+//       ext = 'm4a';
+//       break;
+//     default:
+//       ext = 'mp3';
+//       break;
+//   }
+interface SongToProcess {
+  path: string;
+  id: string;
+  remove: boolean;
+  export: boolean;
 }

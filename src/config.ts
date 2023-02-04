@@ -6,7 +6,7 @@ const user = process.env.subsonic_server_user || undefined;
 const password = process.env.subsonic_server_password || undefined;
 const appVersion = process.env.npm_package_version || '1';
 
-interface IPlaylistExportArguements {
+export interface IPlaylistExportArguements {
   host?: string;
   user?: string;
   password?: string;
@@ -62,7 +62,6 @@ const config = parse<IPlaylistExportArguements>(
       defaultOption: true,
       description: `target playlist ID to export`,
     },
-
     outputPath: {
       type: String,
       optional: true,
@@ -79,9 +78,9 @@ const config = parse<IPlaylistExportArguements>(
     format: {
       type: String,
       optional: true,
-      defaultValue: 'mp3',
+      defaultValue: 'raw',
       description: `The format for exported music files. Set to 'opus' or 'mp3' to export a transcoded music file. Use in conjunction with '--maxBitRate'.
-                    Set to 'raw' to export a non-transcoded origin file. If set to raw, then '--maxBitRate' value is ignored. Default value: 'mp3'`,
+                    Set to 'raw' to export a non-transcoded origin file. If set to raw, then '--maxBitRate' value is ignored. Default value: 'raw'`,
     },
     cache: {
       type: Boolean,
@@ -133,6 +132,7 @@ if (config.envFile) {
   config.host = env.parsed?.subsonic_server_host || config.host;
   config.user = env.parsed?.subsonic_server_user || config.user;
   config.password = env.parsed?.subsonic_server_password || config.password;
+  config.outputPath = env.parsed?.outputPath || config.outputPath;
 }
 
 export default config;
