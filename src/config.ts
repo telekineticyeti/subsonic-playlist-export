@@ -22,6 +22,7 @@ export interface IPlaylistExportArguements {
   playlistOnly?: boolean;
   appName?: string;
   appVersion?: string;
+  verbose?: boolean;
 }
 
 const config = parse<IPlaylistExportArguements>(
@@ -73,14 +74,14 @@ const config = parse<IPlaylistExportArguements>(
       type: Number,
       optional: true,
       defaultValue: 0,
-      description: `The maximum bitrate for exported, transcoded song files. Only applies to 'opus' and 'mp3' formats. Set to 0 for no bitrate limit. Default value: '0'`,
+      description: `The maximum bitrate for exported, transcoded song files. Only applies to 'opus' and 'mp3' formats. Set to 0 for no bitrate limit. If format is not set and maxBitRate is > 0, then format is automatically set to 'mp3'. Default value: '0'`,
     },
     format: {
       type: String,
       optional: true,
       defaultValue: 'raw',
       description: `The format for exported music files. Set to 'opus' or 'mp3' to export a transcoded music file. Use in conjunction with '--maxBitRate'.
-                    Set to 'raw' to export a non-transcoded origin file. If set to raw, then '--maxBitRate' value is ignored. Default value: 'raw'`,
+                    Set to 'raw' to export a non-transcoded origin file. If format is explicitly set to raw, then '--maxBitRate' value is ignored. Default value: 'raw'.`,
     },
     cache: {
       type: Boolean,
@@ -119,6 +120,14 @@ const config = parse<IPlaylistExportArguements>(
       defaultValue: appVersion,
       description: `Can be used in conjunction with appNam. Default value: package.json version.`,
     },
+    verbose: {
+      type: Boolean,
+      optional: true,
+      alias: 'v',
+      defaultValue: false,
+      description:
+        'Enables more detailed information about the program function. Default value: false',
+    },
     help: {type: Boolean, optional: true, alias: 'h', description: 'Prints this usage guide'},
   },
   {
@@ -133,6 +142,14 @@ if (config.envFile) {
   config.user = env.parsed?.subsonic_server_user || config.user;
   config.password = env.parsed?.subsonic_server_password || config.password;
   config.outputPath = env.parsed?.outputPath || config.outputPath;
+}
+
+// IF the user has specified a maximum bitrate but no format, then 'mp3' format is
+// automatically set for them.
+if (config.maxBitrate && config.maxBitrate > 0) {
+  if (!config.format || config.format === 'raw') {
+    config.format = 'mp3';
+  }
 }
 
 export default config;

@@ -1,4 +1,4 @@
-// #!/usr/bin/env node
+#! /usr/bin/env node
 
 import {TaskRunner} from './playlist-export-helper.class';
 import SubsonicApiWrapper from 'subsonic-api-wrapper';
