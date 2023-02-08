@@ -117,7 +117,6 @@ export class PlaylistExportTask {
       this.songsToExport.map(async song => {
         try {
           const destination = this.setPathFormat(path.join(config.outputPath!, song.path));
-          log(fse.existsSync(destination));
           const trackName = song.path.replace(/^.*[\\\/]/, '');
           const albumPath = path.join(
             config.outputPath!,
@@ -168,7 +167,9 @@ export class PlaylistExportTask {
     let m3uString = `# Exported from subsonic ${this.playlist.playlist.name} (${this.playlist.playlist.id})\n`;
     m3uString += `# Created: ${this.playlist.playlist.created}, Updated: ${this.playlist.playlist.changed}\n`;
     try {
-      this.playlist.songs.forEach(song => (m3uString += `${this.setPathFormat(song.path)}\n`));
+      this.playlist.songs.forEach(
+        song => (m3uString += `${this.setPathFormat('.' + song.path)}\n`),
+      );
       const opts: fse.WriteFileOptions = {};
       if (playlistExtension === 'm3u8') {
         Object.assign(opts, {
@@ -347,23 +348,6 @@ export class PlaylistExportTask {
         return !this.playlist.songs.map(s => s.id).includes(song.id);
       });
       this.songsToSkip = oldSongs;
-
-      console.log(this.songsToSkip.length);
-      // if (fse.existsSync(destination)) {
-      //   // Skip the file transfer if the destination file already exists.
-      //   this.skippedTracks++;
-      //   if (!this.silent) {
-      //     this.progressBar?.increment({track: trackName});
-      //     this.progressBar?.update({skipped: this.skippedTracks});
-      //   }
-      //   return;
-      // } else {
-
-      // this.songsToSkip.forEach((song, i) => {
-      //   console.log(i);
-      //   this.progressBar.increment({track: song.title});
-      //   this.progressBar.update({skipped: i + 1});
-      // });
     } else {
       // When no persist is present, it is assumed the playlist is being exported for the first time.
       // All songs are exported.

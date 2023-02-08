@@ -18,7 +18,6 @@ const subsonicApi = new SubsonicApiWrapper({
 });
 
 (async () => {
-  // console.log(config);
   if (config.playlistId) {
     const taskRunner = new TaskRunner(subsonicApi);
     const allPlaylists = await subsonicApi.getPlaylists();
