@@ -1,5 +1,5 @@
 import PersistClass from '../src/persist.class';
-import {PlaylistExportTask} from '../src/playlist-export-helper.class';
+import {PlaylistSyncTask} from '../src/playlist-sync';
 import config from '../src/config';
 import fse from 'fs-extra';
 
@@ -10,9 +10,9 @@ const mockedPersistHelper = <jest.Mock<PersistClass>>PersistClass;
 
 const mockApi: any = {};
 
-let exporter: PlaylistExportTask;
+let exporter: PlaylistSyncTask;
 
-describe('PlaylistExportTask()', () => {
+describe('PlaylistSyncTask()', () => {
   beforeEach(() => {
     const mockPlaylist: any = {
       playlist: {
@@ -29,27 +29,67 @@ describe('PlaylistExportTask()', () => {
         {id: 'song3', path: 'music/artist01/album 2/song3.opus'},
       ],
     };
-    exporter = new PlaylistExportTask(mockPlaylist, mockApi);
+    exporter = new PlaylistSyncTask(mockPlaylist, mockApi);
     mockedPersistHelper.mockClear();
   });
 
-  describe('writePlaylistFile()', () => {
+  describe('writePlaylist()', () => {
     it(`should write m3u8 playlist by default.`, () => {
-      exporter.writePlaylistFile();
+      jest
+        .spyOn(exporter as any, 'createPlaylistString')
+        .mockReturnValueOnce('# Mock Playlist String');
+
+      exporter.writePlaylist();
+
+      expect((exporter as any).createPlaylistString).toHaveBeenCalled();
       expect(fse.writeFile).toHaveBeenCalledWith(
         'exported-playlists/My Mock Playlist.m3u8',
-        `# Exported from subsonic My Mock Playlist (123456)\n# Created: 2023-01-23T23:04:15Z, Updated: 2023-02-05T00:59:42Z\nmusic/artist01/album/song1.mp3\nmusic/_compilations/song2.flac\nmusic/artist01/album 2/song3.opus\n`,
+        `# Mock Playlist String`,
         {encoding: 'utf8'},
       );
     });
 
     it(`should write m3u playlist if 'config.playlistFormat' is set to 'm3u'.`, () => {
+      jest
+        .spyOn(exporter as any, 'createPlaylistString')
+        .mockReturnValueOnce('# Mock Playlist String');
+
       config.playlistFormat = 'm3u';
-      exporter.writePlaylistFile();
+
+      exporter.writePlaylist();
+
+      expect((exporter as any).createPlaylistString).toHaveBeenCalled();
       expect(fse.writeFile).toHaveBeenCalledWith(
         'exported-playlists/My Mock Playlist.m3u',
-        `# Exported from subsonic My Mock Playlist (123456)\n# Created: 2023-01-23T23:04:15Z, Updated: 2023-02-05T00:59:42Z\nmusic/artist01/album/song1.mp3\nmusic/_compilations/song2.flac\nmusic/artist01/album 2/song3.opus\n`,
+        '# Mock Playlist String',
         {},
+      );
+    });
+  });
+
+  describe('createPlaylistString()', () => {
+    it(`should create playlist string`, () => {
+      jest
+        .spyOn(exporter as any, 'setPathFormat')
+        .mockReturnValueOnce('music/artist01/album/song1.mp3')
+        .mockReturnValueOnce('music/_compilations/song2.flac')
+        .mockReturnValueOnce('music/artist01/album 2/song3.opus');
+
+      config.user = 'tim';
+      config.host = 'https://mySubsonic.music';
+
+      const result = (exporter as any).createPlaylistString();
+
+      console.log(result);
+
+      expect(result).toEqual(
+        '# Playlist Sync: tim@https://mySubsonic.music - My Mock Playlist [123456]\n' +
+          '# Created: 2023-01-23T23:04:15Z\n' +
+          '# Updated: 2023-02-05T00:59:42Z\n' +
+          '# Sync Options: [format=raw] [maxBitrate=0]\n' +
+          'music/artist01/album/song1.mp3\n' +
+          'music/_compilations/song2.flac\n' +
+          'music/artist01/album 2/song3.opus\n',
       );
     });
   });
@@ -70,14 +110,71 @@ describe('PlaylistExportTask()', () => {
     // TODO
   });
 
+  describe('setPathFormat()', () => {
+    it(`should not modify the given path`, () => {
+      const result = (exporter as any).setPathFormat('music/artist01/album/song1.mp3');
+      expect(result).toEqual('music/artist01/album/song1.mp3');
+    });
+
+    it(`should not modify given path if adjustPathResolution is set and 'config.absolute=true'`, () => {
+      config.absolute = true;
+      const result = (exporter as any).setPathFormat('music/artist01/album/song1.mp3', true);
+      expect(result).toEqual('music/artist01/album/song1.mp3');
+    });
+
+    it(`should modify given path if adjustPathResolution is set and 'config.absolute=false'`, () => {
+      config.absolute = false;
+      const result = (exporter as any).setPathFormat('music/artist01/album/song1.mp3', true);
+      expect(result).toEqual('.music/artist01/album/song1.mp3');
+    });
+
+    it(`should not modify the path extension if format is defined as raw`, () => {
+      config.format = 'raw';
+      const result = (exporter as any).setPathFormat('music/artist01/album/song1.flac');
+      expect(result).toEqual('music/artist01/album/song1.flac');
+    });
+
+    it(`should modify the path extension if format is defined as mp3`, () => {
+      config.format = 'mp3';
+      const result = (exporter as any).setPathFormat('music/artist01/album/song1.flac');
+      expect(result).toEqual('music/artist01/album/song1.mp3');
+    });
+
+    it(`should modify the path extension if format is defined as opus`, () => {
+      config.format = 'opus';
+      const result = (exporter as any).setPathFormat('music/artist01/album/song1.flac');
+      expect(result).toEqual('music/artist01/album/song1.opus');
+    });
+
+    it(`should modify the path extension if format is defined as opus
+      and 'adjustPathResolution=true' and 'config.absolute="false"'`, () => {
+      config.format = 'opus';
+      config.absolute = false;
+      const result = (exporter as any).setPathFormat('music/artist01/album/song1.flac', true);
+      expect(result).toEqual('.music/artist01/album/song1.opus');
+    });
+
+    it(`should modify the path extension if format is defined as opus
+      and 'adjustPathResolution=true' and 'config.absolute="true"'`, () => {
+      config.format = 'opus';
+      config.absolute = true;
+      const result = (exporter as any).setPathFormat('music/artist01/album/song1.flac', true);
+      expect(result).toEqual('music/artist01/album/song1.opus');
+    });
+  });
+
+  describe('clearAllPersistedSongs()', () => {
+    // TODO
+  });
+
   describe('setSongExports()', () => {
     beforeEach(() => {
-      config.maxBitrate = undefined;
+      config.maxBitrate = 0;
       config.format = 'raw';
     });
 
     it(`should retain original path if format is not defined.`, () => {
-      config.format = undefined;
+      config.format = 'raw';
 
       (exporter as any).setSongExports(exporter.playlist.songs);
 
@@ -123,7 +220,7 @@ describe('PlaylistExportTask()', () => {
           {id: 'song3', path: ''},
         ],
       };
-      config.maxBitrate = undefined;
+      config.maxBitrate = 0;
       config.format = 'raw';
     });
 
@@ -141,7 +238,7 @@ describe('PlaylistExportTask()', () => {
 
       config.format = 'mp3';
 
-      exporter.resolveSongs();
+      (exporter as any).resolveSongs();
 
       expect(exporter.songsToRemove).toEqual([
         {id: 'song1', path: ''},
@@ -173,7 +270,7 @@ describe('PlaylistExportTask()', () => {
       config.maxBitrate = 190;
       config.format = 'mp3';
 
-      exporter.resolveSongs();
+      (exporter as any).resolveSongs();
 
       expect(exporter.songsToRemove).toEqual([
         {id: 'song1', path: ''},
@@ -205,7 +302,7 @@ describe('PlaylistExportTask()', () => {
       config.maxBitrate = 190;
       config.format = 'mp3';
 
-      exporter.resolveSongs();
+      (exporter as any).resolveSongs();
 
       expect(exporter.songsToRemove).toEqual([]);
       expect((exporter as any).clearAllPersistedSongs).not.toHaveBeenCalled();
@@ -227,7 +324,7 @@ describe('PlaylistExportTask()', () => {
 
       config.format = 'mp3';
 
-      exporter.resolveSongs();
+      (exporter as any).resolveSongs();
 
       expect(exporter.songsToRemove).toEqual([]);
       expect((exporter as any).clearAllPersistedSongs).not.toHaveBeenCalled();
@@ -255,7 +352,7 @@ describe('PlaylistExportTask()', () => {
 
       config.format = 'mp3';
 
-      exporter.resolveSongs();
+      (exporter as any).resolveSongs();
 
       expect((exporter as any).clearAllPersistedSongs).not.toHaveBeenCalled();
       expect((exporter as any).setSongExports).toHaveBeenCalledWith([{id: 'song5', path: ''}]);

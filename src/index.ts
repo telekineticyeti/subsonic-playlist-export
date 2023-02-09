@@ -1,6 +1,6 @@
 #! /usr/bin/env node
 
-import {TaskRunner} from './playlist-export-helper.class';
+import {TaskRunner} from './playlist-sync';
 import SubsonicApiWrapper from 'subsonic-api-wrapper';
 import config from './config';
 

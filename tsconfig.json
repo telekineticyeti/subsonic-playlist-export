@@ -16,13 +16,7 @@
     "forceConsistentCasingInFileNames": true,
     "outDir": "dist/",
     "esModuleInterop": true,
-    "types": ["node"],
-    "plugins": [
-      {
-        "name": "ts-lit-plugin",
-        "strict": true
-      }
-    ]
+    "types": ["node", "jest"],
   },
-  "include": ["src/**/*.ts"]
+  "include": ["src/**/*.ts"],
 }
