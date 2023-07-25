@@ -1,16 +1,16 @@
 {
-  "name": "subsonic-playlist-export",
+  "name": "subsonic-playlist-sync",
   "version": "1.0.0",
-  "description": "",
+  "description": "Node CLI for export/sync of playlists and songs (with optional transcoding) from Subsonic-API compatible music servers.",
   "main": "dist/index.cjs",
   "bin": {
-    "subsonicPlaylistExport": "./dist/index.cjs"
+    "playlist-sync": "./dist/index.cjs"
   },
   "scripts": {
     "start": "nodemon --exec \"npm run build\" -e ts -i dist/ -w src/",
+    "build": "npx unbuild",
     "test": "npx jest",
-    "test:watch": "npx jest --watch",
-    "build": "npx unbuild"
+    "test:watch": "npx jest --watch"
   },
   "author": "",
   "license": "ISC",

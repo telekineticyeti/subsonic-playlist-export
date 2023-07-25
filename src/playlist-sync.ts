@@ -2,7 +2,6 @@ import {Subsonic} from 'subsonic-api-wrapper';
 import * as fse from 'fs-extra';
 import * as path from 'path';
 import * as cliProgress from 'cli-progress';
-import colors from 'ansi-colors';
 import SubsonicApiWrapper from 'subsonic-api-wrapper';
 import PersistClass from './persist.class';
 import config, {progresBarConfig} from './config';

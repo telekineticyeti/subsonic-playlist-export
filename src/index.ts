@@ -1,6 +1,6 @@
 #! /usr/bin/env node
 
-import {TaskRunner} from './playlist-sync';
+import { TaskRunner } from './playlist-sync';
 import SubsonicApiWrapper from 'subsonic-api-wrapper';
 import config from './config';
 
@@ -44,8 +44,8 @@ async function listPlaylists(): Promise<void> {
     const playlists = await subsonicApi.getPlaylists();
 
     const playlistsReduced = playlists
-      .map(pl => ({name: pl.name, id: pl.id}))
-      .reduce((pl, {id, ...x}) => {
+      .map(pl => ({ name: pl.name, id: pl.id }))
+      .reduce((pl, { id, ...x }) => {
         (pl as any)[id] = x;
         return pl;
       }, {});

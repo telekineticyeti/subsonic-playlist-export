@@ -80,8 +80,6 @@ describe('PlaylistSyncTask()', () => {
 
       const result = (exporter as any).createPlaylistString();
 
-      console.log(result);
-
       expect(result).toEqual(
         '# Playlist Sync: tim@https://mySubsonic.music - My Mock Playlist [123456]\n' +
           '# Created: 2023-01-23T23:04:15Z\n' +
@@ -94,19 +92,58 @@ describe('PlaylistSyncTask()', () => {
     });
   });
 
-  describe('purgeRemovedTracks()', () => {
-    // TODO
-  });
-
-  describe('updatePersist()', () => {
-    // TODO
-  });
-
   describe('exportSongs()', () => {
     // TODO
   });
 
   describe('export()', () => {
+    // TODO
+  });
+
+  xdescribe('purgeRemovedTracks()', () => {
+    it(`should remove songs files specified in songsToRemove property, 
+        and recursively remove empty path to songs until the defined
+        'config.outputPath' is reached.`, () => {
+      expect.assertions(1);
+      exporter.songsToRemove = [
+        {id: 'song1', path: 'music/artist01/album/song1.flac'},
+        {id: 'song2', path: 'music/artist01/album2/song2.mp3'},
+        {id: 'song3', path: 'music/_compilations/soundtrack/song3.flac'},
+      ];
+
+      // Tricky to mock as we need to return vals from fse.remove and fse.readdir to
+      // emulate recursion.
+
+      (exporter as any).purgeRemovedTracks();
+
+      expect(fse.remove).toHaveBeenNthCalledWith(
+        1,
+        'exported-playlists/music/artist01/album/song1.flac',
+      );
+      expect(fse.remove).toHaveBeenNthCalledWith(
+        2,
+        'exported-playlists/music/artist01/album/song1.flac',
+      );
+      // expect(fse.remove).toHaveBeenNthCalledWith(
+      //   3,
+      //   'exported-playlists/music/artist01/album/song1.flac',
+      // );
+      // expect(fse.remove).toHaveBeenNthCalledWith(
+      //   4,
+      //   'exported-playlists/music/artist01/album/song1.flac',
+      // );
+      // expect(fse.remove).toHaveBeenNthCalledWith(
+      //   5,
+      //   'exported-playlists/music/artist01/album/song1.flac',
+      // );
+      // expect(fse.remove).toHaveBeenNthCalledWith(
+      //   6,
+      //   'exported-playlists/music/artist01/album/song1.flac',
+      // );
+    });
+  });
+
+  describe('updatePersist()', () => {
     // TODO
   });
 
@@ -164,7 +201,29 @@ describe('PlaylistSyncTask()', () => {
   });
 
   describe('clearAllPersistedSongs()', () => {
-    // TODO
+    it(`should do nothing if persistance is empty`, () => {
+      (exporter as any).clearAllPersistedSongs();
+      expect((exporter as any).songsToRemove).toEqual([]);
+    });
+
+    it(`should set 'songsToRemove' property if persistance is defined.`, () => {
+      exporter.persistedData = {
+        format: 'raw',
+        songs: [
+          {id: 'song1', path: 'music/artist01/album/song1.flac'},
+          {id: 'song2', path: 'music/artist01/album/song2.flac'},
+          {id: 'song3', path: 'music/artist01/album/song3.flac'},
+        ],
+      };
+
+      (exporter as any).clearAllPersistedSongs();
+
+      expect((exporter as any).songsToRemove).toEqual([
+        {id: 'song1', path: 'music/artist01/album/song1.flac'},
+        {id: 'song2', path: 'music/artist01/album/song2.flac'},
+        {id: 'song3', path: 'music/artist01/album/song3.flac'},
+      ]);
+    });
   });
 
   describe('setSongExports()', () => {
