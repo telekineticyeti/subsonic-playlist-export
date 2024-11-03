@@ -1,5 +1,5 @@
 import PersistClass from '../src/persist.class';
-import {PlaylistSyncTask} from '../src/playlist-sync';
+import {PlaylistSyncTask} from '../src/playlist-export';
 import config from '../src/config';
 import fse from 'fs-extra';
 
@@ -30,50 +30,35 @@ describe('PlaylistSyncTask()', () => {
       ],
     };
     exporter = new PlaylistSyncTask(mockPlaylist, mockApi);
+
     mockedPersistHelper.mockClear();
   });
 
   describe('writePlaylist()', () => {
     it(`should write m3u8 playlist by default.`, () => {
-      jest
-        .spyOn(exporter as any, 'createPlaylistString')
-        .mockReturnValueOnce('# Mock Playlist String');
+      jest.spyOn(exporter as any, 'createPlaylistString').mockReturnValueOnce('# Mock Playlist String');
 
       exporter.writePlaylist();
-
       expect((exporter as any).createPlaylistString).toHaveBeenCalled();
-      expect(fse.writeFile).toHaveBeenCalledWith(
-        'exported-playlists/My Mock Playlist.m3u8',
-        `# Mock Playlist String`,
-        {encoding: 'utf8'},
-      );
+      expect(fse.writeFile).toHaveBeenCalledWith('exported-playlists/My Mock Playlist.m3u8', `# Mock Playlist String`, {encoding: 'utf8'});
     });
 
     it(`should write m3u playlist if 'config.playlistFormat' is set to 'm3u'.`, () => {
-      jest
-        .spyOn(exporter as any, 'createPlaylistString')
-        .mockReturnValueOnce('# Mock Playlist String');
-
+      jest.spyOn(exporter as any, 'createPlaylistString').mockReturnValueOnce('# Mock Playlist String');
       config.playlistFormat = 'm3u';
-
       exporter.writePlaylist();
-
       expect((exporter as any).createPlaylistString).toHaveBeenCalled();
-      expect(fse.writeFile).toHaveBeenCalledWith(
-        'exported-playlists/My Mock Playlist.m3u',
-        '# Mock Playlist String',
-        {},
-      );
+      expect(fse.writeFile).toHaveBeenCalledWith('exported-playlists/My Mock Playlist.m3u', '# Mock Playlist String', {});
     });
   });
 
   describe('createPlaylistString()', () => {
-    it(`should create playlist string`, () => {
+    it(`Should create the playlist string that will be written to the playlist file.`, () => {
       jest
-        .spyOn(exporter as any, 'setPathFormat')
-        .mockReturnValueOnce('music/artist01/album/song1.mp3')
-        .mockReturnValueOnce('music/_compilations/song2.flac')
-        .mockReturnValueOnce('music/artist01/album 2/song3.opus');
+        .spyOn(exporter as any, 'resolveSongPaths')
+        .mockReturnValueOnce({songPath: '', playlistPath: 'music/artist01/album/song1.mp3'})
+        .mockReturnValueOnce({songPath: '', playlistPath: 'music/_compilations/song2.flac'})
+        .mockReturnValueOnce({songPath: '', playlistPath: 'music/artist01/album 2/song3.opus'});
 
       config.user = 'tim';
       config.host = 'https://mySubsonic.music';
@@ -92,20 +77,12 @@ describe('PlaylistSyncTask()', () => {
     });
   });
 
-  describe('exportSongs()', () => {
-    // TODO
-  });
-
-  describe('export()', () => {
-    // TODO
-  });
-
   xdescribe('purgeRemovedTracks()', () => {
-    it(`should remove songs files specified in songsToRemove property, 
+    it(`should remove songs files specified in songsToRemove property,
         and recursively remove empty path to songs until the defined
         'config.outputPath' is reached.`, () => {
       expect.assertions(1);
-      exporter.songsToRemove = [
+      (exporter as any).songsToRemove = [
         {id: 'song1', path: 'music/artist01/album/song1.flac'},
         {id: 'song2', path: 'music/artist01/album2/song2.mp3'},
         {id: 'song3', path: 'music/_compilations/soundtrack/song3.flac'},
@@ -116,14 +93,8 @@ describe('PlaylistSyncTask()', () => {
 
       (exporter as any).purgeRemovedTracks();
 
-      expect(fse.remove).toHaveBeenNthCalledWith(
-        1,
-        'exported-playlists/music/artist01/album/song1.flac',
-      );
-      expect(fse.remove).toHaveBeenNthCalledWith(
-        2,
-        'exported-playlists/music/artist01/album/song1.flac',
-      );
+      expect(fse.remove).toHaveBeenNthCalledWith(1, 'exported-playlists/music/artist01/album/song1.flac');
+      expect(fse.remove).toHaveBeenNthCalledWith(2, 'exported-playlists/music/artist01/album/song1.flac');
       // expect(fse.remove).toHaveBeenNthCalledWith(
       //   3,
       //   'exported-playlists/music/artist01/album/song1.flac',
@@ -143,60 +114,69 @@ describe('PlaylistSyncTask()', () => {
     });
   });
 
-  describe('updatePersist()', () => {
-    // TODO
-  });
-
-  describe('setPathFormat()', () => {
+  describe('resolveSongPaths()', () => {
     it(`should not modify the given path`, () => {
-      const result = (exporter as any).setPathFormat('music/artist01/album/song1.mp3');
-      expect(result).toEqual('music/artist01/album/song1.mp3');
+      const result = (exporter as any).resolveSongPaths({path: '/music/artist01/album/song1.mp3'});
+      expect(result).toEqual({
+        songPath: 'exported-playlists/music/artist01/album/song1.mp3',
+        playlistPath: 'music/artist01/album/song1.mp3',
+      });
     });
 
-    it(`should not modify given path if adjustPathResolution is set and 'config.absolute=true'`, () => {
-      config.absolute = true;
-      const result = (exporter as any).setPathFormat('music/artist01/album/song1.mp3', true);
-      expect(result).toEqual('music/artist01/album/song1.mp3');
+    it(`should give the absolute playlistPath when absolutePaths=true`, () => {
+      config.absolutePaths = true;
+      const result = (exporter as any).resolveSongPaths({path: '/music/artist01/album/song1.mp3'});
+      expect(result).toEqual({
+        songPath: 'exported-playlists/music/artist01/album/song1.mp3',
+        playlistPath: '/music/artist01/album/song1.mp3',
+      });
     });
 
-    it(`should modify given path if adjustPathResolution is set and 'config.absolute=false'`, () => {
-      config.absolute = false;
-      const result = (exporter as any).setPathFormat('music/artist01/album/song1.mp3', true);
-      expect(result).toEqual('.music/artist01/album/song1.mp3');
+    it(`should give the relative playlistPath when absolutePaths=false`, () => {
+      config.absolutePaths = false;
+      const result = (exporter as any).resolveSongPaths({path: '/music/artist01/album/song1.mp3'});
+      expect(result).toEqual({
+        songPath: 'exported-playlists/music/artist01/album/song1.mp3',
+        playlistPath: 'music/artist01/album/song1.mp3',
+      });
     });
 
     it(`should not modify the path extension if format is defined as raw`, () => {
       config.format = 'raw';
-      const result = (exporter as any).setPathFormat('music/artist01/album/song1.flac');
-      expect(result).toEqual('music/artist01/album/song1.flac');
+      const result = (exporter as any).resolveSongPaths({path: '/music/artist01/album/song1.flac'});
+      expect(result).toEqual({
+        songPath: 'exported-playlists/music/artist01/album/song1.flac',
+        playlistPath: 'music/artist01/album/song1.flac',
+      });
     });
 
     it(`should modify the path extension if format is defined as mp3`, () => {
       config.format = 'mp3';
-      const result = (exporter as any).setPathFormat('music/artist01/album/song1.flac');
-      expect(result).toEqual('music/artist01/album/song1.mp3');
+      const result = (exporter as any).resolveSongPaths({path: '/music/artist01/album/song1.flac'});
+      expect(result).toEqual({
+        songPath: 'exported-playlists/music/artist01/album/song1.mp3',
+        playlistPath: 'music/artist01/album/song1.mp3',
+      });
     });
 
     it(`should modify the path extension if format is defined as opus`, () => {
       config.format = 'opus';
-      const result = (exporter as any).setPathFormat('music/artist01/album/song1.flac');
-      expect(result).toEqual('music/artist01/album/song1.opus');
+      const result = (exporter as any).resolveSongPaths({path: '/music/artist01/album/song1.flac'});
+      expect(result).toEqual({
+        songPath: 'exported-playlists/music/artist01/album/song1.opus',
+        playlistPath: 'music/artist01/album/song1.opus',
+      });
     });
 
     it(`should modify the path extension if format is defined as opus
-      and 'adjustPathResolution=true' and 'config.absolute="false"'`, () => {
+      and 'absolutePaths=true'`, () => {
       config.format = 'opus';
-      config.absolute = false;
-      const result = (exporter as any).setPathFormat('music/artist01/album/song1.flac', true);
-      expect(result).toEqual('.music/artist01/album/song1.opus');
-    });
-
-    it(`should modify the path extension if format is defined as opus
-      and 'adjustPathResolution=true' and 'config.absolute="true"'`, () => {
-      config.format = 'opus';
-      config.absolute = true;
-      const result = (exporter as any).setPathFormat('music/artist01/album/song1.flac', true);
-      expect(result).toEqual('music/artist01/album/song1.opus');
+      config.absolutePaths = true;
+      const result = (exporter as any).resolveSongPaths({path: '/music/artist01/album/song1.flac'});
+      expect(result).toEqual({
+        songPath: 'exported-playlists/music/artist01/album/song1.opus',
+        playlistPath: '/music/artist01/album/song1.opus',
+      });
     });
   });
 
@@ -299,7 +279,7 @@ describe('PlaylistSyncTask()', () => {
 
       (exporter as any).resolveSongs();
 
-      expect(exporter.songsToRemove).toEqual([
+      expect((exporter as any).songsToRemove).toEqual([
         {id: 'song1', path: ''},
         {id: 'song2', path: ''},
         {id: 'song3', path: ''},
@@ -331,7 +311,7 @@ describe('PlaylistSyncTask()', () => {
 
       (exporter as any).resolveSongs();
 
-      expect(exporter.songsToRemove).toEqual([
+      expect((exporter as any).songsToRemove).toEqual([
         {id: 'song1', path: ''},
         {id: 'song2', path: ''},
         {id: 'song3', path: ''},
@@ -363,7 +343,7 @@ describe('PlaylistSyncTask()', () => {
 
       (exporter as any).resolveSongs();
 
-      expect(exporter.songsToRemove).toEqual([]);
+      expect((exporter as any).songsToRemove).toEqual([]);
       expect((exporter as any).clearAllPersistedSongs).not.toHaveBeenCalled();
       expect((exporter as any).setSongExports).toHaveBeenCalledWith([]);
     });
@@ -385,7 +365,7 @@ describe('PlaylistSyncTask()', () => {
 
       (exporter as any).resolveSongs();
 
-      expect(exporter.songsToRemove).toEqual([]);
+      expect((exporter as any).songsToRemove).toEqual([]);
       expect((exporter as any).clearAllPersistedSongs).not.toHaveBeenCalled();
       expect((exporter as any).setSongExports).toHaveBeenCalledWith([]);
     });
@@ -393,19 +373,21 @@ describe('PlaylistSyncTask()', () => {
     it(`should remove songs no longer in the remote playlist, and add new songs in the remote playlist`, () => {
       jest.spyOn(exporter as any, 'clearAllPersistedSongs');
       jest.spyOn(exporter as any, 'setSongExports');
+
       (exporter as any).playlist.songs = [
-        {id: 'song1', path: ''},
-        {id: 'song2', path: ''},
-        {id: 'song3', path: ''},
-        {id: 'song5', path: ''},
+        {id: 'song1', path: 'music/artist01/album/song1.mp3'},
+        {id: 'song2', path: 'music/artist01/album/song2.mp3'},
+        {id: 'song3', path: 'music/artist01/album/song3.mp3'},
+        {id: 'song5', path: 'music/artist01/album/song5.mp3'},
       ];
+
       exporter.persistedData = {
         format: 'mp3',
         songs: [
-          {id: 'song1', path: ''},
-          {id: 'song2', path: ''},
-          {id: 'song3', path: ''},
-          {id: 'song4', path: ''},
+          {id: 'song1', path: 'music/artist01/album/song1.mp3'},
+          {id: 'song2', path: 'music/artist01/album/song2.mp3'},
+          {id: 'song3', path: 'music/artist01/album/song3.mp3'},
+          {id: 'song4', path: 'music/artist01/album/song4.mp3'},
         ],
       };
 
@@ -414,9 +396,9 @@ describe('PlaylistSyncTask()', () => {
       (exporter as any).resolveSongs();
 
       expect((exporter as any).clearAllPersistedSongs).not.toHaveBeenCalled();
-      expect((exporter as any).setSongExports).toHaveBeenCalledWith([{id: 'song5', path: ''}]);
-      expect(exporter.songsToRemove).toEqual([{id: 'song4', path: ''}]);
-      expect(exporter.songsToExport).toEqual([{id: 'song5', path: ''}]);
+      expect((exporter as any).setSongExports).toHaveBeenCalledWith([{id: 'song5', path: 'music/artist01/album/song5.mp3'}]);
+      expect((exporter as any).songsToRemove).toEqual([{id: 'song4', path: 'music/artist01/album/song4.mp3'}]);
+      expect((exporter as any).songsToExport).toEqual([{id: 'song5', path: 'music/artist01/album/song5.mp3'}]);
     });
   });
 });

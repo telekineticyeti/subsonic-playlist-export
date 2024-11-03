@@ -21,9 +21,6 @@ export default {
     commonJs({
       include: /node_modules/,
     }),
-    // cleaner({
-    //   targets: ['./music/', './dist/'],
-    // }),
   ],
   preserveEntrySignatures: 'strict',
 };

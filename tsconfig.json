@@ -17,6 +17,10 @@
     "outDir": "dist/",
     "esModuleInterop": true,
     "types": ["node", "jest"],
+    "sourceMap": true
   },
   "include": ["src/**/*.ts"],
+  "ts-node": {
+    "files": true
+  }
 }

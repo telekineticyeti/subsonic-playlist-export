@@ -1,6 +1,5 @@
 node_modules
+exported
 dist
-.env
 dev
-.vscode
-export*
+.env

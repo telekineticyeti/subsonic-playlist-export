@@ -1,4 +1,7 @@
 import storage from 'node-persist';
+import config from './config';
+import * as path from 'path';
+import * as fse from 'fs-extra';
 
 export default class PersistClass {
   constructor() {
@@ -6,7 +9,9 @@ export default class PersistClass {
   }
 
   private async init() {
-    await storage.init({dir: './persist'});
+    const persistPath = path.join(config.outputPath, '.persist');
+    await fse.ensureDir(persistPath);
+    await storage.init({dir: persistPath});
   }
 
   /**

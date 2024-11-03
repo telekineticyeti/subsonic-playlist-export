@@ -1,6 +1,6 @@
 #! /usr/bin/env node
 
-import { TaskRunner } from './playlist-sync';
+import {TaskRunner} from './playlist-export';
 import SubsonicApiWrapper from 'subsonic-api-wrapper';
 import config from './config';
 
@@ -22,9 +22,7 @@ const subsonicApi = new SubsonicApiWrapper({
     const taskRunner = new TaskRunner(subsonicApi);
     const allPlaylists = await subsonicApi.getPlaylists();
     // TODO: Warn on missing playlist IDs.
-    const availablePlaylists = allPlaylists.filter(playlist =>
-      config.playlistId?.includes(playlist.id),
-    );
+    const availablePlaylists = allPlaylists.filter(playlist => config.playlistId?.includes(playlist.id));
 
     for (const playlist of availablePlaylists) {
       const playListFull = await subsonicApi.getPlaylist(playlist.id);
@@ -44,13 +42,13 @@ async function listPlaylists(): Promise<void> {
     const playlists = await subsonicApi.getPlaylists();
 
     const playlistsReduced = playlists
-      .map(pl => ({ name: pl.name, id: pl.id }))
-      .reduce((pl, { id, ...x }) => {
-        (pl as any)[id] = x;
-        return pl;
+      .map(playlist => ({name: playlist.name, id: playlist.id}))
+      .reduce((playlist, {id, ...x}) => {
+        (playlist as any)[id] = x;
+        return playlist;
       }, {});
 
-    return console.table(playlistsReduced);
+    console.table(playlistsReduced);
   } catch (error) {
     console.error(error);
   }
